@@ -40,7 +40,9 @@ void SensorParamHandler::declareParams(std::shared_ptr<dai::node::MonoCamera> mo
     if(getParam<bool>("r_set_man_exposure", false)) {
         monoCam->initialControl.setManualExposure(exposure, iso);
     }
-}
+    //monoCam->initialControl.setFrameSyncMode(dai::CameraControl::FrameSyncMode::INPUT);
+    //monoCam->initialControl.setExternalTrigger(1,0);
+}                                                
 
 void SensorParamHandler::declareParams(std::shared_ptr<dai::node::ColorCamera> colorCam,
                                        dai::CameraBoardSocket socket,
@@ -111,6 +113,8 @@ void SensorParamHandler::declareParams(std::shared_ptr<dai::node::ColorCamera> c
     if(getParam<bool>("r_set_man_whitebalance", false)) {
         colorCam->initialControl.setManualWhiteBalance(whitebalance);
     }
+    //colorCam->initialControl.setFrameSyncMode(dai::CameraControl::FrameSyncMode::INPUT);
+    //colorCam->initialControl.setExternalTrigger(1,0);
 }
 dai::CameraControl SensorParamHandler::setRuntimeParams(parametersConfig& config) {
     dai::CameraControl ctrl;

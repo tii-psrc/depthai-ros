@@ -13,7 +13,8 @@ ImuConverter::ImuConverter(const std::string& frameName,
                            double angular_velocity_cov,
                            double rotation_cov,
                            double magnetic_field_cov,
-                           bool enable_rotation)
+                           bool enable_rotation,
+                           bool getBaseDeviceTimestamp)
     : _frameName(frameName),
       _syncMode(syncMode),
       _linear_accel_cov(linear_accel_cov),
@@ -22,11 +23,16 @@ ImuConverter::ImuConverter(const std::string& frameName,
       _magnetic_field_cov(magnetic_field_cov),
       _enable_rotation(enable_rotation),
       _sequenceNum(0),
-      _steadyBaseTime(std::chrono::steady_clock::now()) {
+      _steadyBaseTime(std::chrono::steady_clock::now()),
+      _getBaseDeviceTimestamp(getBaseDeviceTimestamp) {
     _rosBaseTime = ::ros::Time::now();
 }
 
 ImuConverter::~ImuConverter() = default;
+
+void ImuConverter::updateRosBaseTime() {
+    updateBaseTime(_steadyBaseTime, _rosBaseTime, _totalNsChange);
+}
 
 void ImuConverter::fillImuMsg(dai::IMUReportAccelerometer report, ImuMsgs::Imu& msg) {
     msg.linear_acceleration.x = report.x;
@@ -82,32 +88,52 @@ void ImuConverter::fillImuMsg(dai::IMUReportMagneticField report, depthai_ros_ms
 }
 
 void ImuConverter::toRosMsg(std::shared_ptr<dai::IMUData> inData, std::deque<ImuMsgs::Imu>& outImuMsgs) {
+    if(_updateRosBaseTimeOnToRosMsg) {
+        updateRosBaseTime();
+    }
     if(_syncMode != ImuSyncMethod::COPY) {
         FillImuData_LinearInterpolation(inData->packets, outImuMsgs);
     } else {
         for(int i = 0; i < inData->packets.size(); ++i) {
             auto accel = inData->packets[i].acceleroMeter;
             auto gyro = inData->packets[i].gyroscope;
-            auto rot = inData->packets[i].rotationVector;
-            auto magn = inData->packets[i].magneticField;
             ImuMsgs::Imu msg;
-            CreateUnitMessage(accel, gyro, rot, magn, msg, accel.timestamp);
+            std::chrono::_V2::steady_clock::time_point tstamp;
+            if(_getBaseDeviceTimestamp)
+                tstamp = accel.getTimestampDevice();
+            else
+                tstamp = accel.getTimestamp();
+
+            CreateUnitMessage(accel, gyro, msg, tstamp);
             outImuMsgs.push_back(msg);
         }
     }
 }
 
 void ImuConverter::toRosDaiMsg(std::shared_ptr<dai::IMUData> inData, std::deque<depthai_ros_msgs::ImuWithMagneticField>& outImuMsgs) {
+    if(_updateRosBaseTimeOnToRosMsg) {
+        updateRosBaseTime();
+    }
     if(_syncMode != ImuSyncMethod::COPY) {
         FillImuData_LinearInterpolation(inData->packets, outImuMsgs);
     } else {
         for(int i = 0; i < inData->packets.size(); ++i) {
             auto accel = inData->packets[i].acceleroMeter;
             auto gyro = inData->packets[i].gyroscope;
-            auto rot = inData->packets[i].rotationVector;
-            auto magn = inData->packets[i].magneticField;
             depthai_ros_msgs::ImuWithMagneticField msg;
-            CreateUnitMessage(accel, gyro, rot, magn, msg, accel.timestamp);
+            std::chrono::_V2::steady_clock::time_point tstamp;
+            if(_getBaseDeviceTimestamp)
+                tstamp = accel.getTimestampDevice();
+            else
+                tstamp = accel.getTimestamp();
+            if(_enable_rotation){
+                auto rot = inData->packets[i].rotationVector;
+                auto magn = inData->packets[i].magneticField;
+                CreateUnitMessage(accel, gyro, rot, magn, msg, tstamp);
+            }
+            else{
+                CreateUnitMessage(accel, gyro, msg, tstamp);
+            }
             outImuMsgs.push_back(msg);
         }
     }

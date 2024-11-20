@@ -92,6 +92,10 @@ ImageMsgs::Image ImageConverter::toRosMsgRawPtr(std::shared_ptr<dai::ImgFrame> i
     header.frame_id = frameName;
 
     header.stamp = getFrameTime(rosBaseTime, steadyBaseTime, tstamp);
+    // truncate to 1 millisecond to avoid left/right images timestamps being different by few nanoseconds
+    uint64_t ns = header.stamp.nanosec;
+    header.stamp.nanosec = std::round(ns / 1000000.0) * 1000000.0;
+
 
     if(fromBitstream) {
         std::string encoding;
